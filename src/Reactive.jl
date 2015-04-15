@@ -1,5 +1,7 @@
 module Reactive
 
+using MessageUtils
+
 using Base.Order
 using Base.Collections
 
@@ -40,21 +42,6 @@ end
 
 rank(x::Signal) = x.rank # topological rank
 value(x::Signal) = x.value # current value
-
-# An `Input` is a signal which can be updated explicitly by code external to Reactive.
-# All other signal types have implicit update logic.
-# `Input` signals can be updated by a call to `push!`.
-# An `Input` must be created with an initial value.
-type Input{T} <: Signal{T}
-    rank::Uint
-    children::Vector{Signal}
-    value::T
-
-    function Input(v)
-        new(next_rank(), Signal[], convert(T, v))
-    end
-end
-Input{T}(v::T) = Input{T}(v)
 
 # An intermediate node. A `Node` can be created by functions
 # in this library that return signals.
@@ -234,81 +221,6 @@ end
 function update(node::Flatten, parent)
     node.value = deepvalue(parent)
     return true
-end
-
-begin
-    local isupdating = false
-    # Update the value of an Input signal and propagate the
-    # change.
-    #
-    # Args:
-    #     input: An Input signal
-    #     val: The new value to be set
-    # Returns:
-    #     nothing
-    function push!{T}(input::Input{T}, val)
-        if isupdating
-            error("push! called when another signal is still updating.")
-        else
-            try
-                isupdating = true
-                input.value = convert(T, val)
-
-                heap = (Signal, Signal)[] # a min-heap of (child, parent)
-                child_rank(x) = rank(x[1])
-                ord = By(child_rank)  # ordered topologically by child.rank
-
-                # first dirty parent
-                merge_parent = Dict{Merge, Signal}()
-                for c in input.children
-                    if isa(c, Merge)
-                        merge_parent[c] = input
-                    end
-                    heappush!(heap, (c, input), ord)
-                end
-
-                prev = nothing
-                while !isempty(heap)
-                    (n, parent) = heappop!(heap, ord)
-                    if n == prev
-                        continue # already processed
-                    end
-                    # Merge is a special case!
-                    if isa(n, Merge) && haskey(merge_parent, n)
-                        propagate = update(n, merge_parent[n])
-                    else
-                        propagate = update(n, parent)
-                    end
-
-                    if propagate
-                        for c in n.children
-                            if isa(c, Merge)
-                                if haskey(merge_parent, c)
-                                    if c.ranks[n] < c.ranks[merge_parent[c]]
-                                        merge_parent[c] = n
-                                    end
-                                else
-                                    merge_parent[c] = n
-                                end
-                            end
-                            heappush!(heap, (c, n), ord)
-                        end
-                    end
-                    prev = n
-                end
-                isupdating = false
-                return nothing
-            catch ex
-                # FIXME: Rethink this.
-                isupdating = false
-                showerror(STDERR, ex)
-                println(STDERR)
-                Base.show_backtrace(STDERR, catch_backtrace())
-                println(STDERR)
-                throw(ex)
-            end
-        end
-    end
 end
 
 # The `lift` operator can be used to create a new signal from

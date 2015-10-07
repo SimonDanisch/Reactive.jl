@@ -37,7 +37,7 @@ if VERSION >= v"0.3-"
     import Base: foldl, foldr
 end
 
-typealias Callable Union(DataType, Function)
+typealias Callable Union{DataType, Function}
 
 # SignalSource is a contract that you can call signal() on the
 # value to get a Signal
@@ -70,7 +70,7 @@ value(x::Signal) = x.value # current value
 # `Input` signals can be updated by a call to `push!`.
 # An `Input` must be created with an initial value.
 type Input{T} <: Signal{T}
-    rank::Uint
+    rank::UInt
     children::Vector{Signal}
     value::T
 
@@ -101,7 +101,7 @@ remove_child!(parent::Signal, child::Signal) =
     remove_child!((parent,), child)
 
 type Lift{T} <: Node{T}
-    rank::Uint
+    rank::UInt
     children::Vector{Signal}
     f::Callable
     signals::@compat Tuple{Vararg{Signal}}
@@ -120,7 +120,7 @@ function update{T}(node::Lift{T}, parent)
 end
 
 type Filter{T} <: Node{T}
-    rank::Uint
+    rank::UInt
     children::Vector{Signal}
     predicate::Function
     signal::Signal{T}
@@ -145,7 +145,7 @@ function update{T}(node::Filter{T}, parent::Signal{T})
 end
 
 type DropWhen{T} <: Node{T}
-    rank::Uint
+    rank::UInt
     children::Vector{Signal}
     test::Signal{Bool}
     signal::Signal{T}
@@ -169,7 +169,7 @@ function update{T}(node::DropWhen{T}, parent::Signal{T})
 end
 
 type DropRepeats{T} <: Node{T}
-    rank::Uint
+    rank::UInt
     children::Vector{Signal}
     signal::Signal{T}
     value::T
@@ -191,7 +191,7 @@ function update{T}(node::DropRepeats{T}, parent::Signal{T})
 end
 
 type Merge{T} <: Node{T}
-    rank::Uint
+    rank::UInt
     children::Vector{Signal}
     signals::@compat Tuple{Vararg{Signal}}
     ranks::Dict{Signal, Int}
@@ -217,7 +217,7 @@ function update{T}(node::Merge{T}, parent)
 end
 
 type SampleOn{T, U} <: Node{U}
-    rank::Uint
+    rank::UInt
     children::Vector{Signal}
     signal1::Signal{T}
     signal2::Signal{U}
@@ -238,7 +238,7 @@ deepvalue(s::Signal) = value(s)
 deepvalue{T <: Signal}(s::Signal{T}) = deepvalue(value(s))
 
 type Flatten{T} <: Node{T}
-    rank::Uint
+    rank::UInt
     children::Vector{Signal}
     value::T
     function Flatten(signalsignal::Signal)
@@ -361,7 +361,7 @@ consume(f::Callable, inputs::SignalSource...; kwargs...) =
 
 lift(args...; kwargs...) = consume(args...; kwargs...)
 
-typealias Try{T} Union(T, Exception)
+typealias Try{T} Union{T, Exception}
 
 wraptrycatch(typ, f) =
     (a...) -> try

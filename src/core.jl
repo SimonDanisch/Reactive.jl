@@ -9,14 +9,30 @@ immutable Action
 end
 isrequired(a::Action) = a.recipient.value != nothing && a.recipient.value.alive
 
+const nodes = Any[]
+const bts = Any[]
+
 type Node{T}
     value::T
     parents::Tuple
     actions::Vector{Action}
     alive::Bool
 end
-Node(x, parents=()) = Node(x, parents, Action[], true)
-Node{T}(::Type{T}, x, parents=()) = Node{T}(x, parents, Action[], true)
+function Node(x, parents=())
+    n = Node(x, parents, Action[], true)
+    push!(nodes, WeakRef(n))
+    bt = catch_backtrace()
+    push!(bts, bt)
+    n
+end
+
+function Node{T}(::Type{T}, x, parents=())
+    n = Node{T}(x, parents, Action[], true)
+    push!(nodes, WeakRef(n))
+    bt = catch_backtrace()
+    push!(bts, bt)
+    n
+end
 
 # preserve/unpreserve nodes from gc
 const _nodes = ObjectIdDict()

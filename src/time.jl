@@ -1,5 +1,31 @@
 export every, fps, fpswhen, throttle
+const timer_list = []
 
+type ReactiveTimer{F}
+    f::F
+    delay::Float64
+    last_time::Float64
+    executed::Int
+    amount::Int
+    function ReactiveTimer(f::F, delay, amount=1)
+        t = new(f, delay, time(), 0, amount)
+        push!(timer_list, t)
+        t
+    end
+end
+ReactiveTimer{F}(f::F, a, b=1) = ReactiveTimer{F}(f, a, b)
+function run_timer()
+    for t in timer_list
+        ct = time()
+        if ct - t.last_time >=  t.delay
+            t.f(t)
+            t.last_time = ct
+            t.executed += 1
+        end
+    end
+    filter!(t->t.executed < t.amount, timer_list)
+    nothing
+end
 """
     throttle(dt, input, f=(acc,x)->x, init=value(input), reinit=x->x)
 
@@ -8,7 +34,7 @@ Throttle a signal to update at most once every dt seconds. By default, the throt
 This behavior can be changed by the `f`, `init` and `reinit` arguments. The `init` and `f` functions are similar to `init` and `f` in `foldp`. `reinit` is called when a new throttle time window opens to reinitialize the initial value for accumulation, it gets one argument, the previous accumulated value.
 
 For example
-    y = throttle(0.2, x, push!, Int[], _->Int[])
+    y = throttle(0.2, x, push!, Int[], x->Int[])
 will create vectors of updates to the integer signal `x` which occur within 0.2 second time windows.
 
 """
@@ -20,11 +46,11 @@ end
 
 # Aggregate a signal producing an update at most once in dt seconds
 function throttle_connect(dt, output, input, f, init, reinit)
-    let collected = init, timer = Timer(x->x, 0)
+    let collected = init, timer = ReactiveTimer(x->x, 0)
         add_action!(input, output) do output, timestep
             collected = f(collected,  value(input))
             close(timer)
-            timer = Timer(x -> begin push!(output, collected); collected=reinit(collected) end, dt)
+            timer = ReactiveTimer(x -> begin push!(output, collected); collected=reinit(collected) end, dt)
         end
     end
 end
@@ -42,7 +68,7 @@ end
 
 function every_connect(dt, output)
     outputref = WeakRef(output)
-    timer = Timer(x -> _push!(outputref, time(), ()->close(timer)), dt, dt)
+    timer = ReactiveTimer(x -> _push!(outputref, time(), ()->close(timer)), dt, dt)
     finalizer(output, _->close(timer))
     output
 end
@@ -59,11 +85,15 @@ function fpswhen(switch, rate)
     n
 end
 
+
+
 function setup_next_tick(outputref, switchref, dt, wait_dt)
     if value(switchref.value)
-        Timer(t -> if value(switchref.value)
-                       _push!(outputref, dt)
-                   end, wait_dt)
+        ReactiveTimer(wait_dt) do t
+            if value(switchref.value)
+                _push!(outputref, dt)
+            end
+       end
     end
 end
 
